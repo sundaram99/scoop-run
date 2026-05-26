@@ -111,7 +111,7 @@ export function drawObstacle(
   }
 }
 
-// Top-down auto-rickshaw: squat, wide, yellow
+// Top-down auto-rickshaw: squat, wide, yellow — front (single wheel) faces DOWN
 function drawAuto(
   ctx: CanvasRenderingContext2D,
   cx: number, y: number, w: number, h: number
@@ -122,15 +122,15 @@ function drawAuto(
   // Roof (darker centre strip)
   ctx.fillStyle = '#B45309'
   roundRect(ctx, cx - w / 2 + 4, y + 6, w - 8, h - 12, 4)
-  // Front wheels
+  // Rear wheels (two, at top — back of vehicle)
   ctx.fillStyle = '#1A0A2E'
   roundRect(ctx, cx - w / 2 - 3, y + 2, 7, 10, 3)
   roundRect(ctx, cx + w / 2 - 4, y + 2, 7, 10, 3)
-  // Rear wheel (single centre)
+  // Front wheel (single centre, at bottom — direction of travel)
   roundRect(ctx, cx - 5, y + h - 10, 10, 10, 4)
 }
 
-// Top-down car: longer, sedan shape
+// Top-down car: longer, sedan shape — windshield at bottom (front, direction of travel)
 function drawCar(
   ctx: CanvasRenderingContext2D,
   cx: number, y: number, w: number, h: number
@@ -138,11 +138,11 @@ function drawCar(
   // Body shell
   ctx.fillStyle = CANVAS_TOKENS.obstacleCar
   roundRect(ctx, cx - w / 2, y, w, h, 8)
-  // Windshield (front)
+  // Rear window (at top — back of car)
   ctx.fillStyle = '#9B72CF'
   roundRect(ctx, cx - w / 2 + 5, y + 4, w - 10, 10, 3)
-  // Rear window
-  ctx.fillStyle = '#9B72CF'
+  // Windshield (at bottom — front, direction of travel)
+  ctx.fillStyle = '#C4B5FD'
   roundRect(ctx, cx - w / 2 + 5, y + h - 14, w - 10, 10, 3)
   // Wheels (4 corners)
   ctx.fillStyle = '#1A0A2E'
@@ -152,22 +152,31 @@ function drawCar(
   roundRect(ctx, cx + w / 2 - 4, y + h - 16, 7, 12, 3)
 }
 
-// Top-down bike: very narrow, elongated
+// Top-down bike with rider — front wheel at bottom (direction of travel)
 function drawBike(
   ctx: CanvasRenderingContext2D,
   cx: number, y: number, w: number, h: number
 ) {
-  // Body — thin oval
-  ctx.fillStyle = CANVAS_TOKENS.obstacleBike
-  roundRect(ctx, cx - w / 2, y, w, h, 9)
-  // Rider helmet circle
-  ctx.fillStyle = '#1A0A2E'
-  ctx.beginPath()
-  ctx.arc(cx, y + 10, 6, 0, Math.PI * 2)
-  ctx.fill()
-  // Front / rear wheel
+  // Rear wheel (at top — back)
   ctx.fillStyle = '#1A0A2E'
   roundRect(ctx, cx - 5, y, 10, 12, 5)
+  // Body — thin oval
+  ctx.fillStyle = CANVAS_TOKENS.obstacleBike
+  roundRect(ctx, cx - w / 2, y + 8, w, h - 16, 9)
+  // Rider helmet (centre of body)
+  ctx.fillStyle = '#1A0A2E'
+  ctx.beginPath()
+  ctx.arc(cx, y + h / 2 - 4, 7, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#9B72CF'
+  ctx.beginPath()
+  ctx.arc(cx, y + h / 2 - 4, 4, 0, Math.PI * 2)
+  ctx.fill()
+  // Handlebar shoulders (rider arms out to sides)
+  ctx.fillStyle = '#374151'
+  roundRect(ctx, cx - w / 2 - 2, y + h / 2 + 2, w + 4, 5, 2)
+  // Front wheel (at bottom — direction of travel)
+  ctx.fillStyle = '#1A0A2E'
   roundRect(ctx, cx - 5, y + h - 12, 10, 12, 5)
 }
 

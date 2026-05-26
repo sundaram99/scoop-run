@@ -50,8 +50,8 @@ function drawRoad(ctx: CanvasRenderingContext2D) {
 
 // After 90° rotation: sprite source is wider-than-tall, so rotated result is taller-than-wide.
 // We pass the LANE_W as the width budget, drawSprite scales to fill that width.
-const PLAYER_RENDER_SIZE = LANE_W - 4   // width budget on canvas (sprite fills lane)
-const OBSTACLE_RENDER_SIZE = LANE_W - 6
+const PLAYER_RENDER_SIZE = Math.round((LANE_W - 4) * 0.70)  // 70% of original
+const OBSTACLE_RENDER_SIZE = Math.round((LANE_W - 6) * 0.70)  // 70% of original size
 
 function drawPlayer(ctx: CanvasRenderingContext2D, lane: Lane, crashed: boolean) {
   const cx = laneX(lane) + PLAYER_W / 2
@@ -253,7 +253,7 @@ export default function PlayPage() {
 
   return (
     <div className="flex flex-col items-center"
-      style={{ background: CANVAS_TOKENS.bg, minHeight: '100svh' }}>
+      style={{ background: CANVAS_TOKENS.bg, height: '100svh', overflow: 'hidden' }}>
 
       {/* HUD */}
       <div className="w-full flex items-center justify-between px-5 py-3"

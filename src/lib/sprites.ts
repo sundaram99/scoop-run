@@ -23,15 +23,17 @@ export function loadSprites(): Promise<HTMLImageElement> {
   })
 }
 
-// Sprites are top-down view, facing downward by default.
-// Player needs to face UP — flip vertically (scaleY -1).
-// Obstacles already face down — no transform needed.
+// In the sprite sheet: player/cars/bike all face UP. Auto faces DOWN.
+// On screen obstacles must face DOWN (direction of travel). Player must face UP.
+// So: player no flip needed for direction, but we flip to reverse it to face up on a down-scrolling road.
+// Cars and bike: flip so they face down.
+// Auto: already faces down, no flip.
 const SPRITE_FLIP: Record<string, boolean> = {
-  'player':   true,   // flip to face up
-  'auto':     false,
-  'car-grey': false,
-  'car-red':  false,
-  'bike':     false,
+  'player':   true,   // faces up in sheet → flip so rider faces toward top of screen
+  'auto':     false,  // faces down in sheet → correct already
+  'car-grey': true,   // taillights at bottom in sheet = backwards → flip so bonnet leads
+  'car-red':  true,
+  'bike':     true,   // faces up in sheet → flip to face down
 }
 
 export function drawSprite(
