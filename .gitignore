@@ -44,3 +44,5 @@ next-env.d.ts
 screenshot-*.png
 dev-out.txt
 dev-err.txt
+
+.vercel
