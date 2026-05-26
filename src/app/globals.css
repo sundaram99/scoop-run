@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  /* Backgrounds */
+  --color-bg:             oklch(92.1% 0.038 301);
+  --color-surface:        oklch(100% 0 0);
+  --color-surface-raised: oklch(95.3% 0.025 301);
+
+  /* Text */
+  --color-text:           oklch(14.8% 0.072 301);
+  --color-text-secondary: oklch(38.2% 0.098 301);
+  --color-text-muted:     oklch(61.4% 0.062 301);
+  --color-text-inverse:   oklch(100% 0 0);
+
+  /* Borders */
+  --color-border:         oklch(86.2% 0.042 301);
+  --color-border-strong:  oklch(55.7% 0.131 301);
+
+  /* Accents */
+  --color-accent:         oklch(49.1% 0.243 301);
+  --color-accent-hover:   oklch(43.2% 0.231 301);
+  --color-accent-dim:     oklch(92.1% 0.038 301);
+  --color-dare:           oklch(57.8% 0.216 11);
+  --color-dare-hover:     oklch(50.4% 0.201 11);
+  --color-dare-dim:       oklch(93.8% 0.028 11);
+
+  /* Semantic */
+  --color-success:        oklch(51.2% 0.153 152);
+  --color-warning:        oklch(60.8% 0.161 66);
+  --color-danger:         oklch(52.7% 0.209 28);
+
+  /* Road */
+  --color-road:           oklch(86.2% 0.042 301);
+  --color-road-line:      oklch(100% 0 0);
+
+  /* Typography */
+  --font-display: var(--font-nunito);
+  --font-body:    var(--font-dm-sans);
+  --font-mono:    var(--font-jetbrains-mono);
+
+  /* Spacing */
+  --spacing-unit:   8px;
+  --spacing-card:   24px;
+  --spacing-mobile: 20px;
+
+  /* Radius */
+  --radius-sm:   8px;
+  --radius-md:   16px;
+  --radius-lg:   20px;
+  --radius-xl:   24px;
+  --radius-full: 9999px;
+}
+
+@layer base {
+  html, body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    max-width: 430px;
+    margin: 0 auto;
+    overflow-x: hidden;
+  }
+}
+
+/* Animations */
+@keyframes flashRing {
+  0%   { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes scoreDeltaFloat {
+  0%   { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-40px); opacity: 0; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60%  { transform: translateX(-5px); }
+  40%, 80%  { transform: translateX(5px); }
+}
+
+@keyframes roadScroll {
+  from { background-position: 0 0; }
+  to   { background-position: 0 40px; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-10px); }
+}
+
+@keyframes pulseRing {
+  0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); }
+  70%  { transform: scale(1);    box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+}
