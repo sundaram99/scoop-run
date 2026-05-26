@@ -9,7 +9,7 @@ import { CANVAS_TOKENS } from '@/lib/tokens'
 import { loadSprites, drawSprite } from '@/lib/sprites'
 import { Lane } from '@/types/game'
 
-const GAME_DURATION = 60 // seconds — use 600 for prod
+const GAME_DURATION = 600 // 10 minutes
 const CANVAS_W = 390
 const CANVAS_H = 700
 const ROAD_X = 90
