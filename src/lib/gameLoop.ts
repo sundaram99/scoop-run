@@ -1,13 +1,20 @@
 import { Lane } from '@/types/game'
+import { SpriteKey } from './sprites'
+import { GemSpawn } from './gems'
+
+export type ObstacleType = 'auto' | 'car' | 'bike' | 'bus' | 'landlord' | 'hiring' | 'tesla'
 
 export interface Obstacle {
   id: string
-  lane: Lane
+  lanes: Lane[]       // multi-lane for bus; single-element for all others
   y: number
   speed: number
-  type: 'auto' | 'car' | 'bike'
+  type: ObstacleType
+  sprite: SpriteKey | null
   width: number
   height: number
+  // tesla only — countdown to next lane switch
+  teslaSwitchIn?: number
 }
 
 export interface CouponToken {
@@ -20,50 +27,105 @@ export interface CouponToken {
 export interface GameObjects {
   obstacles: Obstacle[]
   coupons: CouponToken[]
+  gems: GemSpawn[]
   lastCouponSpawn: number
   nextObstacleIn: number
+  trafficSpikeUntil: number  // elapsed time when spike ends (0 = no spike)
 }
 
 const CANVAS_HEIGHT = 700
-// PLAYER_RENDER_SIZE = round(66 * 0.70) = 46 (bounding box is 46×46)
-// Player sprite 159×357: scale = min(46/159, 46/357) = 46/357 = 0.129 (height-constrained)
-// Rendered: 159*0.129=20w × 46h, centred at cy = PLAYER_Y + PLAYER_H/2 = 580+24 = 604
 const PLAYER_RENDERED_H = 46
 const PLAYER_CENTER_Y = 604
 const PLAYER_Y = PLAYER_CENTER_Y - PLAYER_RENDERED_H / 2  // 581
 const PLAYER_HEIGHT = PLAYER_RENDERED_H
 const PLAYER_WIDTH = Math.round(159 * (46 / 357))  // 20
 
-// Hitbox insets — small trim so collision fires on first visual touch
 const HIT_INSET_TOP = 10
 const HIT_INSET_BOTTOM = 10
-const HIT_INSET_X = 6
 
-export function getObstacleSpeed(elapsed: number): number {
+export function getBaseSpeed(elapsed: number): number {
   return Math.min(350, 150 + Math.floor(elapsed / 30) * 10)
 }
 
+// Sprites available per obstacle type — picked randomly at spawn
+const SPRITE_OPTIONS: Partial<Record<ObstacleType, SpriteKey[]>> = {
+  auto:     ['auto'],
+  car:      ['car-grey', 'car-red', 'car-red2', 'car-open'],
+  bike:     ['bike', 'bike2', 'cyclist'],
+  bus:      ['bus'],
+  landlord: ['landlord'],
+  hiring:   ['hiring'],
+  tesla:    ['tesla'],
+}
+
+// Weighted spawn pool (out of 10)
+const SPAWN_WEIGHTS: { type: ObstacleType; weight: number }[] = [
+  { type: 'auto',     weight: 3   },
+  { type: 'car',      weight: 3   },
+  { type: 'bike',     weight: 2   },
+  { type: 'tesla',    weight: 1   },
+  { type: 'landlord', weight: 0.5 },
+  { type: 'hiring',   weight: 0.5 },
+  { type: 'bus',      weight: 0.1 },
+]
+
+function pickWeightedType(): ObstacleType {
+  const total = SPAWN_WEIGHTS.reduce((s, w) => s + w.weight, 0)
+  let r = Math.random() * total
+  for (const { type, weight } of SPAWN_WEIGHTS) {
+    r -= weight
+    if (r <= 0) return type
+  }
+  return 'car'
+}
+
 export function spawnObstacle(elapsed: number): Obstacle {
-  const types: Obstacle['type'][] = ['auto', 'car', 'bike']
-  const type = types[Math.floor(Math.random() * types.length)]
-  // OBSTACLE_RENDER_SIZE = 45 (70% of 64) — bounding box is 45×45
-  // Sprite aspect ratios: auto 196×357, car 183×376, bike 152×331
-  // scale = min(45/sw, 45/sh) — height-constrained for all (sh > sw)
-  // auto: scale=45/357=0.126 → 25w×45h, car: scale=45/376=0.120→22w×45h, bike: scale=45/331=0.136→21w×45h
-  const dims: Record<Obstacle['type'], [number, number]> = {
-    auto: [25, 45],
-    car:  [22, 45],
-    bike: [21, 45],
+  const type = pickWeightedType()
+  const base = getBaseSpeed(elapsed)
+
+  const speedMult: Record<ObstacleType, number> = {
+    auto: 1.0, car: 1.0, bike: 1.2,
+    bus: 0.6, landlord: 1.0, hiring: 0.8, tesla: 1.0,
+  }
+  const speed = base * speedMult[type]
+
+  // Bus occupies 2 adjacent lanes
+  let lanes: Lane[]
+  if (type === 'bus') {
+    const startLane = Math.random() < 0.5 ? 0 : 1
+    lanes = [startLane, startLane + 1] as Lane[]
+  } else if (type === 'tesla') {
+    lanes = [Math.floor(Math.random() * 3) as Lane]
+  } else {
+    lanes = [Math.floor(Math.random() * 3) as Lane]
+  }
+
+  const options = SPRITE_OPTIONS[type]
+  const sprite = options
+    ? options[Math.floor(Math.random() * options.length)]
+    : null
+
+  const dims: Record<ObstacleType, [number, number]> = {
+    auto:     [13, 45],
+    car:      [25, 45],
+    bike:     [20, 45],
+    bus:      [50, 80],
+    landlord: [22, 45],
+    hiring:   [30, 30],
+    tesla:    [25, 45],
   }
   const [w, h] = dims[type]
+
   return {
     id: `obs-${Date.now()}-${Math.random()}`,
-    lane: Math.floor(Math.random() * 3) as Lane,
+    lanes,
     y: -h,
-    speed: getObstacleSpeed(elapsed),
+    speed,
     type,
+    sprite,
     width: w,
     height: h,
+    ...(type === 'tesla' ? { teslaSwitchIn: 3 + Math.random() } : {}),
   }
 }
 
@@ -81,19 +143,44 @@ export function tickObjects(
   delta: number,
   elapsed: number
 ): GameObjects {
-  const obstacles = objects.obstacles
-    .map(o => ({ ...o, y: o.y + o.speed * delta }))
-    .filter(o => o.y < PLAYER_Y)
+  const inSpike = elapsed < objects.trafficSpikeUntil
 
+  // Move obstacles; tick tesla lane switches
+  const obstacles = objects.obstacles
+    .map(o => {
+      let updated = { ...o, y: o.y + o.speed * delta }
+      if (o.type === 'tesla' && o.teslaSwitchIn !== undefined) {
+        const switchIn = o.teslaSwitchIn - delta
+        if (switchIn <= 0) {
+          const newLane = Math.floor(Math.random() * 3) as Lane
+          updated = { ...updated, lanes: [newLane], teslaSwitchIn: 3 + Math.random() }
+        } else {
+          updated = { ...updated, teslaSwitchIn: switchIn }
+        }
+      }
+      return updated
+    })
+    .filter(o => o.y < PLAYER_Y + 60)
+
+  // Move coupons
   const coupons = objects.coupons
     .map(c => ({ ...c, y: c.y + 120 * delta }))
     .filter(c => c.y < CANVAS_HEIGHT + 40 && !c.collected)
 
+  // Move active gems (only those already spawned)
+  const gems = objects.gems.map(g => {
+    if (g.collected || elapsed < g.spawnAt) return g
+    return { ...g, y: g.y + 80 * delta }
+  }).filter(g => g.collected || elapsed < g.spawnAt || g.y < CANVAS_HEIGHT + 40)
+
+  // Coupon spawn
   const shouldSpawnCoupon = elapsed - objects.lastCouponSpawn >= 20
   const lastCouponSpawn = shouldSpawnCoupon ? elapsed : objects.lastCouponSpawn
   const newCoupons = shouldSpawnCoupon ? [...coupons, spawnCoupon()] : coupons
 
-  const spawnInterval = Math.max(0.8, 2.0 - elapsed * 0.01)
+  // Obstacle spawn — halved interval during traffic spike
+  const baseInterval = Math.max(0.8, 2.0 - elapsed * 0.01)
+  const spawnInterval = inSpike ? baseInterval / 2 : baseInterval
   const nextObstacleIn = objects.nextObstacleIn - delta
   const shouldSpawnObstacle = nextObstacleIn <= 0
   const newObstacles = shouldSpawnObstacle
@@ -103,8 +190,10 @@ export function tickObjects(
   return {
     obstacles: newObstacles,
     coupons: newCoupons,
+    gems,
     lastCouponSpawn,
     nextObstacleIn: shouldSpawnObstacle ? spawnInterval : nextObstacleIn,
+    trafficSpikeUntil: objects.trafficSpikeUntil,
   }
 }
 
@@ -112,20 +201,22 @@ export function checkCollisions(
   objects: GameObjects,
   playerLane: Lane,
   canvasWidth: number
-): { hitObstacle: boolean; hitCouponId: string | null } {
+): { hitObstacleType: ObstacleType | null; hitCouponId: string | null; hitGemId: number | null } {
   const laneWidth = canvasWidth / 3
   const playerX = playerLane * laneWidth + (laneWidth - PLAYER_WIDTH) / 2
 
-  const hitObstacle = objects.obstacles.some(o => {
-    // Lane number is the source of truth for X — no cross-lane bleed
-    if (o.lane !== playerLane) return false
-    // Only check Y overlap — obstacle top/bottom vs player top/bottom with insets
+  let hitObstacleType: ObstacleType | null = null
+  for (const o of objects.obstacles) {
+    if (!o.lanes.includes(playerLane)) continue
     const pTop = PLAYER_Y + HIT_INSET_TOP
     const pBottom = PLAYER_Y + PLAYER_HEIGHT - HIT_INSET_BOTTOM
     const oTop = o.y + o.height * 0.1
     const oBottom = o.y + o.height * 0.9
-    return pTop < oBottom && pBottom > oTop
-  })
+    if (pTop < oBottom && pBottom > oTop) {
+      hitObstacleType = o.type
+      break
+    }
+  }
 
   const hitCoupon = objects.coupons.find(c => {
     if (c.lane !== playerLane || c.collected) return false
@@ -138,5 +229,21 @@ export function checkCollisions(
     )
   })
 
-  return { hitObstacle, hitCouponId: hitCoupon?.id ?? null }
+  // Gem collision — only gems that have spawned and not yet collected
+  const hitGem = objects.gems.find(g => {
+    if (g.collected || g.lane !== playerLane) return false
+    const gX = g.lane * laneWidth + laneWidth / 2
+    return (
+      playerX < gX + 20 &&
+      playerX + PLAYER_WIDTH > gX - 20 &&
+      PLAYER_Y < g.y + 20 &&
+      PLAYER_Y + PLAYER_HEIGHT > g.y - 20
+    )
+  })
+
+  return {
+    hitObstacleType,
+    hitCouponId: hitCoupon?.id ?? null,
+    hitGemId: hitGem?.gemId ?? null,
+  }
 }

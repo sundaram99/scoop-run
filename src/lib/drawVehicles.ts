@@ -99,7 +99,7 @@ export function drawObstacle(
   obs: Obstacle,
   laneWidth: number
 ) {
-  const cx = obs.lane * laneWidth + laneWidth / 2
+  const cx = obs.lanes[0] * laneWidth + laneWidth / 2
   const x = cx - obs.width / 2
 
   if (obs.type === 'auto') {

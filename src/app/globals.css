@@ -94,3 +94,8 @@
   70%  { transform: scale(1);    box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
 }
+
+@keyframes slideInZone {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
