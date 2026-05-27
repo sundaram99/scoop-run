@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Purple background circle -->
+  <circle cx="16" cy="16" r="16" fill="#7C3AED"/>
+  <!-- Scooter body -->
+  <ellipse cx="16" cy="17" rx="6" ry="3.5" fill="#EDE5F7"/>
+  <!-- Delivery box -->
+  <rect x="13" y="11" width="6" height="5" rx="1" fill="#fff"/>
+  <text x="16" y="15.5" font-size="4" font-family="Arial" font-weight="bold" fill="#7C3AED" text-anchor="middle">Z</text>
+  <!-- Front wheel -->
+  <circle cx="21" cy="20" r="2.5" fill="#1A0A2E"/>
+  <circle cx="21" cy="20" r="1.2" fill="#4C1D95"/>
+  <!-- Rear wheel -->
+  <circle cx="11" cy="20" r="2.5" fill="#1A0A2E"/>
+  <circle cx="11" cy="20" r="1.2" fill="#4C1D95"/>
+  <!-- Rider helmet -->
+  <circle cx="16" cy="13" r="2.5" fill="#1A0A2E"/>
+  <circle cx="16" cy="13" r="1.5" fill="#7C3AED"/>
+</svg>

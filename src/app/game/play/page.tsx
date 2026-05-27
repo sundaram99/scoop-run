@@ -8,7 +8,7 @@ import { CANVAS_TOKENS } from '@/lib/tokens'
 import { loadSprites, drawSprite } from '@/lib/sprites'
 import { Lane } from '@/types/game'
 import { Zone, ZONES, checkZone } from '@/lib/zones'
-import { pickRunGems, loadCollectedGems, saveCollectedGems, ALL_GEMS, GemSpawn } from '@/lib/gems'
+import { pickRunGems, loadCollectedGems, saveCollectedGems, ALL_GEMS, GemSpawn, GemImageSlice } from '@/lib/gems'
 
 const GAME_DURATION = 600
 const CANVAS_W = 390
@@ -64,6 +64,25 @@ function drawObstacleSprite(
   obs: Obstacle,
 ) {
   if (!obs.sprite) return
+
+  if (obs.type === 'landlord') {
+    // Left pavement — tall enough to show character + sign clearly
+    const lw = 86
+    const lh = 86
+    drawSprite(ctx, obs.sprite, ROAD_X - lw - 2, obs.y, lw, lh)
+    return
+  }
+
+  if (obs.type === 'hiring') {
+    // Full-width billboard — spans entire canvas so text is legible
+    // Source aspect 1044×350 ≈ 3:1, render at fixed 60px height across full width
+    const bh = 60
+    const bw = Math.round(bh * (1044 / 350))
+    // Centre it across the full canvas
+    drawSprite(ctx, obs.sprite, (CANVAS_W - bw) / 2, obs.y, bw, bh)
+    return
+  }
+
   const cx = obs.lanes.length > 1
     ? ROAD_X + obs.lanes[0] * LANE_W + LANE_W  // bus: midpoint between 2 lanes
     : laneCX(obs.lanes[0])
@@ -83,28 +102,91 @@ function drawCoupon(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
   ctx.fillText('%', cx, cy)
 }
 
+// Each sign uses the full sheet image — rendered as a wide banner on right pavement
+interface SignDef { src: string }
+
+const ZONE_SIGN_DEFS: Record<string, SignDef[]> = {
+  'Koramangala': [
+    { src: '/assets/zones/sign-koramangala.png' },
+  ],
+  'Whitefield': [
+    { src: '/assets/zones/sign-whitefield-1.png' },
+    { src: '/assets/zones/sign-whitefield-2.png' },
+  ],
+}
+
+interface ZoneSign {
+  def: SignDef
+  y: number
+}
+
+const signImageCache: Record<string, HTMLImageElement> = {}
+
+function loadSignImages(): Promise<void> {
+  const srcs = Object.values(ZONE_SIGN_DEFS).flat().map(d => d.src)
+  const loads = srcs
+    .filter(src => !signImageCache[src])
+    .map(src => new Promise<void>((resolve) => {
+      const img = new Image()
+      img.onload = () => resolve()
+      img.onerror = () => resolve()
+      img.src = src
+      signImageCache[src] = img
+    }))
+  return Promise.all(loads).then(() => {})
+}
+
+// Full image, full canvas width, aspect-ratio height (~260px) — scrolls past like a billboard
+const SIGN_DEST_W = CANVAS_W
+const SIGN_DEST_H = Math.round(CANVAS_W * (1024 / 1536))  // ~260px
+
+function drawZoneSign(ctx: CanvasRenderingContext2D, sign: ZoneSign) {
+  const img = signImageCache[sign.def.src]
+  if (!img || !img.complete || img.naturalWidth === 0) return
+  ctx.drawImage(img, 0, sign.y, SIGN_DEST_W, SIGN_DEST_H)
+}
+
+// Gem image cache — keyed by sheet path
+const gemImageCache: Record<string, HTMLImageElement> = {}
+
+function loadGemImages(): Promise<void> {
+  const sheets = Array.from(new Set(ALL_GEMS.map(g => g.slice.sheet)))
+  const loads = sheets
+    .filter(src => !gemImageCache[src])
+    .map(src => new Promise<void>((resolve) => {
+      const img = new Image()
+      img.onload = () => resolve()
+      img.onerror = () => resolve()  // don't block on error
+      img.src = src
+      gemImageCache[src] = img
+    }))
+  return Promise.all(loads).then(() => {})
+}
+
 function drawGem(ctx: CanvasRenderingContext2D, gem: GemSpawn) {
   const cx = laneCX(gem.lane)
   const cy = gem.y
-  // Purple glow ring
-  ctx.strokeStyle = '#7C3AED'
-  ctx.lineWidth = 2
-  ctx.globalAlpha = 0.5
-  ctx.beginPath()
-  ctx.arc(cx, cy, 16, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.globalAlpha = 1
-  // Gem body
-  ctx.fillStyle = '#7C3AED'
-  ctx.beginPath()
-  ctx.arc(cx, cy, 11, 0, Math.PI * 2)
-  ctx.fill()
-  // Gem symbol
-  ctx.fillStyle = '#fff'
-  ctx.font = 'bold 10px sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText('💎', cx, cy)
+  const SIZE = 56
+
+  const gemDef = ALL_GEMS.find(g => g.id === gem.gemId)
+  const img = gemDef ? gemImageCache[gemDef.slice.sheet] : null
+
+  if (img && img.complete && img.naturalWidth > 0 && gemDef) {
+    const { sx, sy, sw, sh } = gemDef.slice
+    const croppedH = Math.round(sh * 0.38)
+    ctx.drawImage(img, sx, sy, sw, croppedH, cx - SIZE / 2, cy - SIZE / 2, SIZE, SIZE)
+  } else {
+    // Fallback: purple circle with white G until image loads
+    ctx.fillStyle = '#7C3AED'
+    ctx.beginPath()
+    ctx.arc(cx, cy, SIZE / 2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 13px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('G', cx, cy)
+  }
 }
 
 // Police character drawn during crashed phase (Layer 2)
@@ -138,15 +220,15 @@ function drawPolice(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.fill()
 }
 
-// Vehicle-specific crash dialogue (Layer 2)
-const CRASH_DIALOGUE: Record<string, string> = {
-  auto:     'Aye! Meter jaega mera!',
-  car:      'Do you know who I am?',
-  bike:     "Bro chill, it's just a scratch",
-  bus:      'Next stop: insurance claim',
-  landlord: 'Damage deposit: ₹2 lakh',
-  hiring:   'No experience handling crashes either?',
-  tesla:    'My autopilot saw you coming',
+// Vehicle-specific crash dialogue — [line1, line2] (line2 optional)
+const CRASH_DIALOGUE: Record<string, [string, string?]> = {
+  auto:     ['Aye! Meter jaega mera!'],
+  car:      ['Janta hai mera baap kaun hai?', 'Oh wait... wrong city dialogue.'],
+  bike:     ["Bro chill, it's just a scratch"],
+  bus:      ['Next stop: insurance claim'],
+  landlord: ['Damage deposit: ₹2 lakh'],
+  hiring:   ['No experience handling crashes either?'],
+  tesla:    ['My autopilot saw you coming'],
 }
 
 export default function PlayPage() {
@@ -168,10 +250,11 @@ export default function PlayPage() {
   const spritesReadyRef = useRef(false)
   const stateRef = useRef(state)
   const gemFlashRef = useRef<{ name: string; until: number } | null>(null)
+  const activeSignsRef = useRef<ZoneSign[]>([])
   stateRef.current = state
 
   useEffect(() => {
-    loadSprites().then(() => { spritesReadyRef.current = true })
+    Promise.all([loadSprites(), loadGemImages(), loadSignImages()]).then(() => { spritesReadyRef.current = true })
     // Pick 2 gems for this run
     objectsRef.current.gems = pickRunGems()
   }, [])
@@ -249,19 +332,22 @@ export default function PlayPage() {
         if (zoneResult.zone.trafficSpike) {
           objectsRef.current = { ...objectsRef.current, trafficSpikeUntil: elapsed + 15 }
         }
+        // Spawn zone signs for Koramangala and Whitefield
+        const defs = ZONE_SIGN_DEFS[zoneResult.zone.name]
+        if (defs) {
+          // Stagger signs 200px apart so they scroll past one by one
+          activeSignsRef.current = [
+            ...activeSignsRef.current,
+            ...defs.map((def, i) => ({ def, y: -SIGN_DEST_H - i * (SIGN_DEST_H + 100) })),
+          ]
+        }
         setTimeout(() => dispatch({ type: 'CLEAR_ZONE' }), 3000)
       }
 
-      // Gem spawning — set y = -30 when spawnAt is crossed
-      objectsRef.current = {
-        ...objectsRef.current,
-        gems: objectsRef.current.gems.map(g => {
-          if (!g.collected && g.y === -30 && elapsed >= g.spawnAt) {
-            return { ...g, y: -30 }
-          }
-          return g
-        }),
-      }
+      // Tick active signs — scroll down at coupon speed
+      activeSignsRef.current = activeSignsRef.current
+        .map(s => ({ ...s, y: s.y + 120 * delta }))
+        .filter(s => s.y < CANVAS_H + SIGN_DEST_H)
 
       const { hitObstacleType, hitCouponId, hitGemId } = checkCollisions(
         objectsRef.current, s.lane, ROAD_W
@@ -270,7 +356,20 @@ export default function PlayPage() {
       if (hitObstacleType && s.phase === 'playing') {
         dispatch({ type: 'CRASH', obstacleType: hitObstacleType })
         if (crashTimerRef.current) clearTimeout(crashTimerRef.current)
-        crashTimerRef.current = setTimeout(() => dispatch({ type: 'RECOVER' }), 1200)
+        crashTimerRef.current = setTimeout(() => {
+          // Clear obstacles in the player's lane within 200px above the player so
+          // recovery doesn't immediately trigger another crash
+          const playerLane = stateRef.current.lane
+          objectsRef.current = {
+            ...objectsRef.current,
+            obstacles: objectsRef.current.obstacles.filter(o => {
+              if (!o.lanes.includes(playerLane)) return true
+              const obBottom = o.y + o.height
+              return obBottom < PLAYER_Y - 200 || o.y > PLAYER_Y + PLAYER_H + 20
+            }),
+          }
+          dispatch({ type: 'RECOVER' })
+        }, 1200)
       }
 
       if (hitCouponId) {
@@ -308,6 +407,9 @@ export default function PlayPage() {
       objectsRef.current.coupons.forEach(c => {
         drawCoupon(ctx, laneCX(c.lane), c.y)
       })
+
+      // Zone signs on right pavement
+      activeSignsRef.current.forEach(s => drawZoneSign(ctx, s))
 
       // Gems (only those that have reached spawnAt)
       objectsRef.current.gems.forEach(g => {
@@ -398,12 +500,15 @@ export default function PlayPage() {
               💥 Crash!
             </span>
             {crashDialogue && (
-              <div className="px-4 py-2 rounded-xl" style={{
+              <div className="px-4 py-2 rounded-xl flex flex-col gap-1" style={{
                 background: '#1A0A2E', color: '#fff',
                 fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 13,
                 maxWidth: 240, textAlign: 'center',
               }}>
-                "{crashDialogue}"
+                <span>"{crashDialogue[0]}"</span>
+                {crashDialogue[1] && (
+                  <span style={{ fontWeight: 400, fontSize: 11, opacity: 0.8 }}>{crashDialogue[1]}</span>
+                )}
               </div>
             )}
           </div>

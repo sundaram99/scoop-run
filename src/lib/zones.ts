@@ -14,7 +14,7 @@ export const ZONES: Zone[] = [
   { triggerAt: 240, name: 'Marathahalli', oneliner: 'The bridge. Again. Why.',                         trafficSpike: true,  triggered: false, image: '/assets/zones/marathahalli.png' },
   { triggerAt: 360, name: 'Sarjapur',     oneliner: 'Is this still Bengaluru? Yes. Somehow.',          trafficSpike: false, triggered: false, image: '/assets/zones/sarjapur.png' },
   { triggerAt: 480, name: 'Whitefield',   oneliner: 'You\'ve left the city. Still in traffic.',        trafficSpike: false, triggered: false, image: '/assets/zones/whitefield.png' },
-  { triggerAt: 600, name: 'Doorbell',     oneliner: 'You made it. The coffee\'s cold.',                trafficSpike: false, triggered: false, image: '/assets/zones/doorbell.png' },
+  { triggerAt: 600, name: 'Doorbell',     oneliner: 'Order delivered. Bengaluru traffic: 0, You: 1.',  trafficSpike: false, triggered: false, image: '/assets/zones/doorbell.png' },
 ]
 
 export function checkZone(

@@ -58,21 +58,29 @@ const SPRITE_OPTIONS: Partial<Record<ObstacleType, SpriteKey[]>> = {
   tesla:    ['tesla'],
 }
 
-// Weighted spawn pool (out of 10)
+// Base spawn weights — landlord/hiring are gated by elapsed time, not in base pool
 const SPAWN_WEIGHTS: { type: ObstacleType; weight: number }[] = [
   { type: 'auto',     weight: 3   },
   { type: 'car',      weight: 3   },
   { type: 'bike',     weight: 2   },
   { type: 'tesla',    weight: 1   },
-  { type: 'landlord', weight: 0.5 },
-  { type: 'hiring',   weight: 0.5 },
   { type: 'bus',      weight: 0.1 },
 ]
 
-function pickWeightedType(): ObstacleType {
-  const total = SPAWN_WEIGHTS.reduce((s, w) => s + w.weight, 0)
+// Landlord: Koramangala (60s) + HSR Layout (150s) only → off at 240s
+// Hiring: Marathahalli (240s) + Sarjapur (360s) only → off at 480s
+function getSpawnWeights(elapsed: number): { type: ObstacleType; weight: number }[] {
+  const weights = [...SPAWN_WEIGHTS]
+  if (elapsed >= 60  && elapsed < 240) weights.push({ type: 'landlord', weight: 0.5 })
+  if (elapsed >= 240 && elapsed < 480) weights.push({ type: 'hiring',   weight: 0.5 })
+  return weights
+}
+
+function pickWeightedType(elapsed: number): ObstacleType {
+  const weights = getSpawnWeights(elapsed)
+  const total = weights.reduce((s, w) => s + w.weight, 0)
   let r = Math.random() * total
-  for (const { type, weight } of SPAWN_WEIGHTS) {
+  for (const { type, weight } of weights) {
     r -= weight
     if (r <= 0) return type
   }
@@ -80,7 +88,7 @@ function pickWeightedType(): ObstacleType {
 }
 
 export function spawnObstacle(elapsed: number): Obstacle {
-  const type = pickWeightedType()
+  const type = pickWeightedType(elapsed)
   const base = getBaseSpeed(elapsed)
 
   const speedMult: Record<ObstacleType, number> = {
@@ -207,6 +215,7 @@ export function checkCollisions(
 
   let hitObstacleType: ObstacleType | null = null
   for (const o of objects.obstacles) {
+    if (o.type === 'landlord' || o.type === 'hiring') continue  // side-rendered, no collision
     if (!o.lanes.includes(playerLane)) continue
     const pTop = PLAYER_Y + HIT_INSET_TOP
     const pBottom = PLAYER_Y + PLAYER_HEIGHT - HIT_INSET_BOTTOM

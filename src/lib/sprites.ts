@@ -48,12 +48,12 @@ const SPRITE_FLIP: Record<string, boolean> = {
   'bike':     true,
   'cyclist':  false,
   'car-open': false,
-  'bus':      false,
-  'car-red2': false,
+  'bus':      true,
+  'car-red2': true,
   'bike2':    true,
   'landlord': false,
   'hiring':   false,
-  'tesla':    true,
+  'tesla':    false,
 }
 
 let sheet1: HTMLImageElement | null = null
